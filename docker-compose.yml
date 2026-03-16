@@ -1,0 +1,131 @@
+version: "3.9"
+
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # PostgreSQL 16
+  # ─────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: privasearch_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: privasearch
+      POSTGRES_PASSWORD: privasearch_secret
+      POSTGRES_DB: privasearch
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U privasearch -d privasearch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - priva-network
+
+  # ─────────────────────────────────────────────────────────────────
+  # Redis 7
+  # ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: privasearch_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - priva-network
+
+  # ─────────────────────────────────────────────────────────────────
+  # Backend — FastAPI (Python 3.12)
+  # ─────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: privasearch_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://privasearch:privasearch_secret@postgres:5432/privasearch
+      REDIS_URL: redis://redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - priva-network
+
+  # ─────────────────────────────────────────────────────────────────
+  # Worker — RQ Scan Processor
+  # ─────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: privasearch_worker
+    restart: unless-stopped
+    command: rq worker scan --url redis://redis:6379/0
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://privasearch:privasearch_secret@postgres:5432/privasearch
+      REDIS_URL: redis://redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - priva-network
+
+  # ─────────────────────────────────────────────────────────────────
+  # Frontend — Next.js 15 (React 19)
+  # ─────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: privasearch_frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - priva-network
+
+networks:
+  priva-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
