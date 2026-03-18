@@ -2,7 +2,7 @@
 
 > Know who's selling your data before you sign up.
 
-Priva-Search is a consumer-facing web app that lets users search for any brand and instantly receive a **Privacy Scorecard** — a human-readable breakdown of how that company handles personal data, based on AI analysis of their official privacy policy.
+Priva-Search is a consumer-facing web app that lets users paste a link to any privacy policy and instantly receive a **Privacy Scorecard** — a human-readable breakdown of how that company handles personal data, based on AI analysis of their official privacy policy.
 
 ---
 
