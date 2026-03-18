@@ -34,7 +34,7 @@ async def get_brand_scorecard(slug: str, db: AsyncSession = Depends(get_db)):
         select(Scorecard)
         .where(Scorecard.brand_id == brand.id)
         .where(Scorecard.overall_risk_score.isnot(None))
-        .order_by(Scorecard.last_scanned_at.desc())
+        .order_by(Scorecard.last_scanned_at.desc(), Scorecard.created_at.desc())
         .options(
             selectinload(Scorecard.risk_categories),
             selectinload(Scorecard.opt_out_info)

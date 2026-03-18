@@ -23,6 +23,7 @@ from sqlalchemy import select, update
 
 from db.database import AsyncSessionLocal
 from models.brand import Brand
+from services.url_safety import get_safe_client, validate_public_url
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,16 @@ async def crawl_privacy_policy(url: str) -> CrawlResult:
     """
     domain = _domain_from_url(url)
     api_key = os.getenv("FIRECRAWL_API_KEY", "")
+    
+    try:
+        validate_public_url(url)
+    except Exception as e:
+        return {
+            "crawl_status": "failed",
+            "markdown": None,
+            "crawl_method": "none",
+            "reason": f"SSRF Blocked: {e}"
+        }
 
     # ── Step 1: Firecrawl ─────────────────────────────────────────────────────
     if api_key and api_key not in ("your_firecrawl_key_here", "REPLACE_ME"):
@@ -211,7 +222,7 @@ async def _try_sitemap(original_url: str, domain: str) -> str | None:
     privacy_keywords = ["privacy", "datenschutz", "privacidad"]
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, headers=HEADERS, follow_redirects=True) as client:
+        async with get_safe_client(timeout=10.0, headers=HEADERS, follow_redirects=True) as client:
             resp = await client.get(sitemap_url)
             resp.raise_for_status()
 
@@ -245,7 +256,7 @@ async def _try_direct(url: str) -> str | None:
     Returns Markdown content or None if unsuccessful.
     """
     try:
-        async with httpx.AsyncClient(timeout=15.0, headers=HEADERS, follow_redirects=True) as client:
+        async with get_safe_client(timeout=15.0, headers=HEADERS, follow_redirects=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             return _html_to_markdown(resp.text)
@@ -261,7 +272,7 @@ async def _try_google_cache(url: str) -> str | None:
     """
     cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{url}"
     try:
-        async with httpx.AsyncClient(timeout=15.0, headers=HEADERS, follow_redirects=True) as client:
+        async with get_safe_client(timeout=15.0, headers=HEADERS, follow_redirects=True) as client:
             resp = await client.get(cache_url)
             if resp.status_code == 200:
                 return _html_to_markdown(resp.text)

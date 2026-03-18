@@ -14,6 +14,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -81,6 +82,7 @@ class RiskCategory(Base):
     # Indexes
     __table_args__ = (
         Index("ix_risk_categories_scorecard_id", "scorecard_id"),
+        UniqueConstraint("scorecard_id", "category_key", name="uq_risk_categories_scorecard_id_category_key"),
     )
 
 
@@ -100,6 +102,11 @@ class OptOutInfo(Base):
     # Relationships
     scorecard: Mapped["Scorecard"] = relationship("Scorecard", back_populates="opt_out_info")
 
+    # Indexes
+    __table_args__ = (
+        UniqueConstraint("scorecard_id", name="uq_opt_out_info_scorecard_id"),
+    )
+
 
 class ScanJob(Base):
     """Tracks the lifecycle of an async scan pipeline job."""
@@ -107,7 +114,8 @@ class ScanJob(Base):
     __tablename__ = "scan_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
-    brand_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    submitted_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    brand_slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)

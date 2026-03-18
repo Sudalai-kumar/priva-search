@@ -88,7 +88,7 @@ async def _process_brand(brand: Brand) -> None:
             logger.info(
                 "Brand '%s' has no scorecard — enqueuing fresh scan.", brand.slug
             )
-            await enqueue_scan_job(brand.name)
+            await enqueue_scan_job(brand.privacy_url)
             return
 
         # 1. Crawl fresh content
@@ -126,7 +126,7 @@ async def _process_brand(brand: Brand) -> None:
                 "Brand '%s' policy hash changed — enqueuing full re-scan.",
                 brand.slug,
             )
-            await enqueue_scan_job(brand.name)
+            await enqueue_scan_job(brand.privacy_url)
 
 
 async def _mark_stale_scorecards() -> None:

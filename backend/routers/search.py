@@ -56,9 +56,15 @@ async def search_brand(
     """
     try:
         from services.brand_discovery import is_valid_url, normalize_domain
+        from services.url_safety import validate_public_url, SSRFViolationError
         
         if not is_valid_url(q):
             raise HTTPException(status_code=400, detail="Search query must be a valid http/https URL")
+            
+        try:
+            validate_public_url(q)
+        except SSRFViolationError as e:
+            raise HTTPException(status_code=400, detail=str(e))
             
         slug = slugify(normalize_domain(q))
 

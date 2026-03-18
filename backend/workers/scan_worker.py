@@ -110,11 +110,10 @@ async def _async_scan_pipeline(scan_id: str) -> None:
     try:
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(ScanJob).where(ScanJob.id == scan_id))
-            job = result.scalar_one_or_none()
             if not job:
                 logger.error("Scan job %s not found in database.", scan_id)
                 return
-            job_url = job.brand_name  # The queue stores the URL in the brand_name column
+            job_url = job.submitted_url  # The queue stores the URL in the submitted_url column
 
         # ── DISCOVERY ──────────────────────────────────────────────────────
         await _update_job_status(scan_id, "discovery")
@@ -126,10 +125,14 @@ async def _async_scan_pipeline(scan_id: str) -> None:
         job_privacy_url = discovery_data["privacy_url"]
 
         async with AsyncSessionLocal() as db:
+            # Persist the discovered slug for frontend polling
+            await db.execute(update(ScanJob).where(ScanJob.id == scan_id).values(brand_slug=brand_slug))
+            
             res = await db.execute(select(Brand).where(Brand.slug == brand_slug))
             brand_obj = res.scalar_one()
             job_brand_id = brand_obj.id
             brand_tier = brand_obj.tier
+            await db.commit()
 
         # ── CRAWLING ───────────────────────────────────────────────────────
         await _update_job_status(scan_id, "crawling")

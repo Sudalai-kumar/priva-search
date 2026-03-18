@@ -7,6 +7,7 @@ Endpoints:
   WS   /ws/scan/{scan_id}       — Real-time progress via Redis pub/sub
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
 from models.scorecard import ScanJob
 from services.queue import enqueue_scan_job
+from services.url_safety import validate_public_url, SSRFViolationError
 from schemas.brand import ScanRequest, ScanResponse, ScanStatusResponse
 
 logger = logging.getLogger(__name__)
@@ -44,11 +46,16 @@ STAGE_PROGRESS = {
 @router.post("/scan", response_model=ScanResponse)
 async def create_scan(request: ScanRequest, req: Request):
     """
-    Starts a new privacy scan for a brand.
-    Returns the scan ID which can be used to poll status or connect via WebSocket.
+    Creates a new scan job for a given URL and enqueues it.
+    Returns the scan_id immediately.
     """
     client_ip = req.client.host if req.client else None
-
+    
+    try:
+        validate_public_url(request.url)
+    except SSRFViolationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
     try:
         scan_id = await enqueue_scan_job(request.url, client_ip)
         return ScanResponse(scan_id=scan_id, status="queued")
@@ -67,7 +74,6 @@ async def get_scan_status(scan_id: str, db: AsyncSession = Depends(get_db)):
     Retrieves the current status and progress percentage of a scan job.
     Used as a polling fallback when WebSocket is unavailable.
     """
-    from services.brand_discovery import slugify
 
     result = await db.execute(select(ScanJob).where(ScanJob.id == scan_id))
     job = result.scalar_one_or_none()
@@ -76,7 +82,7 @@ async def get_scan_status(scan_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Scan job not found")
 
     progress = STAGE_PROGRESS.get(job.status, 0)
-    slug = slugify(job.brand_name) if job.brand_name else None
+    slug = job.brand_slug
 
     return ScanStatusResponse(
         scan_id=job.id,
@@ -129,7 +135,22 @@ async def websocket_scan_progress(websocket: WebSocket, scan_id: str):
         }
         await websocket.send_text(json.dumps(initial_event))
 
-        async for message in pubsub.listen():
+        pubsub_iter = pubsub.listen()
+        while True:
+            try:
+                message = await asyncio.wait_for(anext(pubsub_iter), timeout=IDLE_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError:
+                logger.warning("WebSocket idle timeout reached for scan_id=%s", scan_id)
+                try:
+                    await websocket.send_text(json.dumps({
+                        "stage": "failed",
+                        "message": "Scan timed out due to inactivity",
+                        "progress": 0
+                    }))
+                except Exception:
+                    pass
+                break
+
             if message["type"] != "message":
                 continue
 
