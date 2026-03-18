@@ -14,7 +14,7 @@ interface SearchBarProps {
  * Shows a loading spinner while navigating.
  */
 export default function SearchBar({
-  placeholder = "Search any brand — Spotify, Google, Netflix…",
+  placeholder = "Paste a privacy policy URL (e.g., https://example.com/privacy)...",
 }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,8 +23,20 @@ export default function SearchBar({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const trimmed = query.trim();
+    let trimmed = query.trim();
     if (!trimmed) return;
+
+    // Basic URL validation/auto-fix
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      trimmed = "https://" + trimmed;
+    }
+
+    try {
+      new URL(trimmed);
+    } catch {
+      alert("Please enter a valid URL.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -36,13 +48,20 @@ export default function SearchBar({
         router.push(`/brand/${result.brand.slug}`);
       } else {
         // Enqueued scan
-        const fallbackSlug = trimmed.toLowerCase().replace(/\s+/g, "-");
+        // Extract domain from URL to act as fallback slug if needed during routing
+        const urlObj = new URL(trimmed);
+        let fallbackSlug = urlObj.hostname.replace(/^www\./, "");
+        fallbackSlug = fallbackSlug.replace(/\./g, "-").toLowerCase();
+        
         router.push(`/brand/${fallbackSlug}?scan_id=${result.scan_id}`);
       }
     } catch (err) {
       console.error("Search failed:", err);
       // Fallback to direct navigation
-      const fallbackSlug = trimmed.toLowerCase().replace(/\s+/g, "-");
+      const urlObj = new URL(trimmed);
+      let fallbackSlug = urlObj.hostname.replace(/^www\./, "");
+      fallbackSlug = fallbackSlug.replace(/\./g, "-").toLowerCase();
+      
       router.push(`/brand/${fallbackSlug}`);
     } finally {
       setLoading(false);
@@ -99,10 +118,10 @@ export default function SearchBar({
         {loading ? (
           <>
             <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Searching…
+            Analyzing URL…
           </>
         ) : (
-          "Search"
+          "Analyze"
         )}
       </motion.button>
     </form>

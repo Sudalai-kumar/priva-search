@@ -40,7 +40,7 @@ CAPTCHA_TRIGGER_RPM = 10
 @limiter.limit("30/minute")
 async def search_brand(
     request: Request,
-    q: str = Query(..., min_length=1, max_length=255),
+    q: str = Query(..., min_length=1, max_length=2000),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -55,7 +55,12 @@ async def search_brand(
     when this flag is True (CAPTCHA integration deferred to v2).
     """
     try:
-        slug = slugify(q)
+        from services.brand_discovery import is_valid_url, normalize_domain
+        
+        if not is_valid_url(q):
+            raise HTTPException(status_code=400, detail="Search query must be a valid http/https URL")
+            
+        slug = slugify(normalize_domain(q))
 
         # ── 1. Look up brand ────────────────────────────────────────────────
         stmt = select(Brand).where(Brand.slug == slug)
@@ -87,9 +92,12 @@ async def search_brand(
 
                 if last_scanned > limit_date:
                     # ── Cache hit — return immediately ───────────────────
+                    sc_data = ScorecardSchema.model_validate(scorecard)
+                    sc_data.privacy_url = brand.privacy_url
+                    
                     return {
                         "brand": BrandSchema.model_validate(brand).model_dump(),
-                        "scorecard": ScorecardSchema.model_validate(scorecard).model_dump(),
+                        "scorecard": sc_data.model_dump(),
                     }
 
         # ── 3. Not found or stale — enqueue scan ────────────────────────────

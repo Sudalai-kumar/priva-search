@@ -93,7 +93,7 @@ export default function HomePage() {
           <span className="gradient-text">Privacy</span> Scorecard
         </h1>
         <p className="text-zinc-400 text-lg sm:text-xl max-w-xl mx-auto leading-relaxed">
-          Search any brand and instantly know how they handle your personal data — powered by AI analysis of their privacy policy.
+          Paste any privacy policy URL and instantly know how they handle your personal data — powered by AI analysis.
         </p>
       </motion.div>
 

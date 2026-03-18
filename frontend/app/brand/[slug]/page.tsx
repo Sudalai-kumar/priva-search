@@ -120,10 +120,23 @@ export default function BrandPage({ params, searchParams }: PageProps) {
         </motion.section>
       )}
 
-      <footer className="pt-8 border-t border-zinc-900 flex flex-wrap gap-8 text-[10px] text-zinc-600 uppercase tracking-widest">
+      <footer className="pt-8 border-t border-zinc-900 flex flex-wrap gap-8 text-[10px] text-zinc-600 uppercase tracking-widest items-center">
         <span>Last Scanned: {scorecard.last_scanned_at ? new Date(scorecard.last_scanned_at).toLocaleDateString() : "N/A"}</span>
         <span>Model: {scorecard.model_used}</span>
         <span>Method: {scorecard.crawl_method_used}</span>
+        {scorecard.privacy_url && (
+          <a 
+            href={scorecard.privacy_url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-indigo-500 hover:text-indigo-400 flex items-center gap-1 transition-colors"
+          >
+            Source Policy
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        )}
         {scorecard.legal_review_recommended && (
           <span className="text-amber-600">⚠ Manual Review Recommended</span>
         )}

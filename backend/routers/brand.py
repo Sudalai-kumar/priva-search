@@ -47,4 +47,8 @@ async def get_brand_scorecard(slug: str, db: AsyncSession = Depends(get_db)):
     if not scorecard:
         raise HTTPException(status_code=404, detail=f"No scorecard found for brand '{slug}'.")
         
-    return scorecard
+    # Map privacy_url from brand table
+    scorecard_data = ScorecardSchema.model_validate(scorecard)
+    scorecard_data.privacy_url = brand.privacy_url
+    
+    return scorecard_data

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 class ScanRequest(BaseModel):
-    brand_name: str = Field(..., min_length=1, max_length=255)
+    url: str = Field(..., min_length=1, max_length=2000)
 
 class ScanResponse(BaseModel):
     scan_id: str

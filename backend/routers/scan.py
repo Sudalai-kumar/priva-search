@@ -50,7 +50,7 @@ async def create_scan(request: ScanRequest, req: Request):
     client_ip = req.client.host if req.client else None
 
     try:
-        scan_id = await enqueue_scan_job(request.brand_name, client_ip)
+        scan_id = await enqueue_scan_job(request.url, client_ip)
         return ScanResponse(scan_id=scan_id, status="queued")
     except Exception as exc:
         logger.error("Failed to queue scan: %s", exc)

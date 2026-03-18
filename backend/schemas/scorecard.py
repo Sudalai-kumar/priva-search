@@ -48,6 +48,7 @@ class ScorecardSchema(BaseModel):
     model_used: str | None = None
     crawl_method_used: str | None = None
     legal_review_recommended: bool = False
+    privacy_url: str | None = None
     risk_categories: list[RiskCategorySchema] = Field(default_factory=list)
     opt_out_info: OptOutInfoSchema | None = None
 

@@ -173,6 +173,9 @@ async def _analyze_with_ollama(markdown_text: str) -> AnalysisOutput:
         resp.raise_for_status()
 
     result = resp.json()
-    raw_json = result["message"]["content"]
-    logger.info("Ollama analysis complete. Output length: %d chars.", len(raw_json or ""))
+    raw_json = result.get("message", {}).get("content")
+    if not raw_json:
+        raise ValueError(f"Ollama returned empty or malformed message: {result}")
+    
+    logger.info("Ollama analysis complete. Output length: %d chars.", len(raw_json))
     return AnalysisOutput.model_validate_json(raw_json)

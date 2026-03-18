@@ -40,8 +40,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 STAGE_MESSAGES = {
     "queued":     ("Your scan is queued",             5),
-    "discovery":  ("Finding privacy policy URL",      20),
-    "crawling":   ("Reading privacy policy",           40),
+    "discovery":  ("Processing URL",                  20),
+    "crawling":   ("Reading privacy policy",          40),
     "analyzing":  ("AI is analyzing the policy",      65),
     "validating": ("Verifying results",               85),
     "done":       ("Scan complete",                   100),
@@ -114,14 +114,14 @@ async def _async_scan_pipeline(scan_id: str) -> None:
             if not job:
                 logger.error("Scan job %s not found in database.", scan_id)
                 return
-            brand_name = job.brand_name
+            job_url = job.brand_name  # The queue stores the URL in the brand_name column
 
         # ── DISCOVERY ──────────────────────────────────────────────────────
         await _update_job_status(scan_id, "discovery")
         _publish_progress(scan_id, "discovery")
 
         from services.brand_discovery import discover_brand
-        discovery_data = await discover_brand(brand_name)
+        discovery_data = await discover_brand(job_url)
         brand_slug = discovery_data["slug"]
         job_privacy_url = discovery_data["privacy_url"]
 
@@ -164,84 +164,27 @@ async def _async_scan_pipeline(scan_id: str) -> None:
         await _update_job_status(scan_id, "analyzing")
         _publish_progress(scan_id, "analyzing")
 
-        from services.validator import validate_analysis
+        from services.analyzer import analyze_policy
 
         # Define a retry function for the validator
         async def retry_ai_call() -> str:
-            logger.info("Validator requested retry — calling AI again.")
-            from services.analyzer import GROQ_MODEL, load_system_prompt, GROQ_MAX_INPUT_CHARS
-            from groq import AsyncGroq
-            api_key = os.getenv("GROQ_API_KEY")
-            system_prompt = load_system_prompt()
-            truncated = scored_markdown[:GROQ_MAX_INPUT_CHARS]
-            client = AsyncGroq(api_key=api_key)
-            response = await client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Analyze this privacy policy:\n\n{truncated}"},
-                ],
-                response_format={"type": "json_object"},
-                max_tokens=2048,
-                temperature=0.1,
-            )
-            return response.choices[0].message.content
+            logger.info("Validator requested retry — calling analyzer again.")
+            res_obj = await analyze_policy(scored_markdown)
+            return res_obj.model_dump_json()
 
         # Initial AI Analysis Call
-        raw_json = None
         try:
-            from services.analyzer import _analyze_with_groq, _analyze_with_ollama
-            from services import groq_tracker
-
-            if await groq_tracker.is_limit_approaching():
-                from services.analyzer import OLLAMA_BASE_URL, OLLAMA_MODEL, load_system_prompt, OLLAMA_MAX_INPUT_CHARS
-                system_prompt = load_system_prompt()
-                truncated = scored_markdown[:OLLAMA_MAX_INPUT_CHARS]
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    resp = await client.post(
-                        f"{OLLAMA_BASE_URL}/api/chat",
-                        json={
-                            "model": OLLAMA_MODEL,
-                            "messages": [
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": f"Analyze this privacy policy:\n\n{truncated}"},
-                            ],
-                            "stream": False,
-                            "format": "json",
-                        },
-                    )
-                    resp.raise_for_status()
-                    raw_json = resp.json()["message"]["content"]
-            else:
-                from services.analyzer import GROQ_MODEL, load_system_prompt, GROQ_MAX_INPUT_CHARS
-                from groq import AsyncGroq
-                api_key = os.getenv("GROQ_API_KEY")
-                system_prompt = load_system_prompt()
-                truncated = scored_markdown[:GROQ_MAX_INPUT_CHARS]
-                client = AsyncGroq(api_key=api_key)
-                response = await client.chat.completions.create(
-                    model=GROQ_MODEL,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Analyze this privacy policy:\n\n{truncated}"},
-                    ],
-                    response_format={"type": "json_object"},
-                    max_tokens=2048,
-                    temperature=0.1,
-                )
-                raw_json = response.choices[0].message.content
-                await groq_tracker.increment_usage()
-
-        except Exception as ai_exc:
-            logger.error("Initial AI call failed: %s. Falling back to Ollama.", ai_exc)
-            from services.analyzer import _analyze_with_ollama
-            analysis_obj = await _analyze_with_ollama(scored_markdown)
+            analysis_obj = await analyze_policy(scored_markdown)
             raw_json = analysis_obj.model_dump_json()
+        except Exception as ai_exc:
+            logger.error("AI analysis failed: %s", ai_exc)
+            raise
 
         # ── VALIDATING ─────────────────────────────────────────────────────
         await _update_job_status(scan_id, "validating")
         _publish_progress(scan_id, "validating")
 
+        from services.validator import validate_analysis
         validated_analysis, legal_review = await validate_analysis(raw_json, retry_fn=retry_ai_call)
 
         # ── WRITE ALL RESULTS TO DB (Single Transaction) ───────────────────
