@@ -7,7 +7,7 @@
 
 ## 1. Project Overview
 
-Priva-Search is a consumer-facing web application that lets users search for any brand and instantly receive a **Privacy Scorecard** — a human-readable breakdown of how that company handles personal data, based on AI analysis of their official privacy policy.
+Priva-Search is a consumer-facing web application that lets users submit any privacy policy URL and instantly receive a **Privacy Scorecard** — a human-readable breakdown of how that company handles personal data, based on AI analysis of their official privacy policy.
 
 The app is designed around three core principles:
 1. **Accuracy over speed** — bad data is worse than slow data
@@ -176,7 +176,7 @@ The scan pipeline is fully asynchronous. No scan work is ever done synchronously
 POST /scan
   └─► Enqueue job in Redis (RQ)
         └─► scan_worker.py picks up job
-              ├─► brand_discovery.py  (find domain)
+              ├─► brand_discovery.py  (extract domain)
               ├─► crawler.py          (get policy markdown)
               ├─► analyzer.py         (AI analysis)
               ├─► validator.py        (validate output)
@@ -188,7 +188,7 @@ The worker publishes progress events to a Redis pub/sub channel (`scan:{scan_id}
 **Job stages and their WebSocket event payloads:**
 ```json
 { "stage": "queued",     "message": "Your scan is queued",          "progress": 5  }
-{ "stage": "discovery",  "message": "Finding privacy policy URL",   "progress": 20 }
+{ "stage": "discovery",  "message": "Processing URL",               "progress": 20 }
 { "stage": "crawling",   "message": "Reading privacy policy",       "progress": 40 }
 { "stage": "analyzing",  "message": "AI is analyzing the policy",   "progress": 65 }
 { "stage": "validating", "message": "Verifying results",            "progress": 85 }
@@ -198,22 +198,8 @@ The worker publishes progress events to a Redis pub/sub channel (`scan:{scan_id}
 
 ### 5.2 Brand Discovery (brand_discovery.py)
 
-When a user searches for a brand name (e.g., "spotify"), the system must resolve it to a domain and then find the privacy policy URL. Use this priority chain:
-
-```
-1. Check brands table — if domain already stored, use it
-2. Query DuckDuckGo Instant Answer API (free, no key required)
-   → GET https://api.duckduckgo.com/?q=spotify+official+site&format=json
-3. Construct candidate URL: {brand_slug}.com
-4. Attempt to find privacy URL via Firecrawl sitemap crawl
-5. Try common privacy URL patterns:
-   - /privacy
-   - /privacy-policy
-   - /legal/privacy
-   - /about/privacy
-```
-
-Never use Clearbit (paid). DuckDuckGo + pattern matching is sufficient. Store the resolved domain in the `brands` table so future searches skip discovery entirely.
+When a user submits a privacy policy URL, the system must extract the domain and generate a slug. 
+The system simply parses the URL uniformly using `urllib.parse` and saves the domain into the `brands` table so future searches using the same domain can be retrieved quickly.
 
 ### 5.3 Crawl Fallback Chain (crawler.py)
 
@@ -365,12 +351,12 @@ completed_at    TIMESTAMP
 ## 7. API Endpoints
 
 ### GET `/search`
-**Query params:** `q` (brand name string)
+**Query params:** `q` (URL string)
 **Rate limit:** 30 requests/minute per IP
-**Behavior:** Check the database for a matching brand. If found and not stale → return cached scorecard instantly. If stale or not found → enqueue a scan job and return `202 Accepted` with a `scan_id`.
+**Behavior:** Check the database for a matching domain. If found and not stale → return cached scorecard instantly. If stale or not found → enqueue a scan job and return `202 Accepted` with a `scan_id`.
 
 ### POST `/scan`
-**Body:** `{ "brand_name": "string", "domain": "string (optional)" }`
+**Body:** `{ "url": "string" }`
 **Rate limit:** 5 requests/minute per IP, 100/day per IP
 **Behavior:** Enqueues a scan job in RQ. Returns `{ "scan_id": "uuid" }` immediately. Does not wait for the job to complete.
 
@@ -402,7 +388,7 @@ GET  /brand/{slug}    → 60 requests/minute
 ```
 
 ### Scan Abuse Prevention
-- Reject any `POST /scan` where `brand_name` is a raw IP address or localhost
+- Reject any `POST /scan` where `url` is a raw IP address or localhost, or fails basic URL validation.
 - Reject any domain that is not a valid public TLD
 - If a single IP submits more than 20 unique brand scans in one hour → temporarily block for 1 hour and log the incident
 - Store `ip_address` on every `scan_jobs` record for audit purposes
@@ -480,7 +466,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000
 - **Do not use create-react-app** — the project uses Next.js.
 - **Do not use axios** — use `httpx` on the backend and native `fetch` or React Query on the frontend.
 - **Do not use socket.io** — use native browser WebSocket with a custom hook.
-- **Do not use Clearbit** — it is paid. Use DuckDuckGo Instant Answer API for brand discovery.
+- **Do not use external APIs for discovery** — parsing the user-provided URL and extracting the domain is sufficient.
 - **Do not run scan jobs synchronously inside request handlers** — all scans go through RQ.
 - **Do not skip the validation layer** — raw AI output must never reach the database or frontend directly.
 - **Do not cache stale data silently** — always surface the "Last Scanned" date and stale indicator to the user.
@@ -511,5 +497,5 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000
 | Abuse block threshold | 20 unique brand scans/hour from one IP |
 | Policy hash algorithm | SHA-256 |
 | Crawl fallback order | Firecrawl → sitemap.xml → direct httpx → Google Cache |
-| Brand discovery method | DB lookup → DuckDuckGo → pattern matching |
+| Brand discovery method | Parse domain from user URL → DB lookup |
 | WebSocket progress stages | queued → discovery → crawling → analyzing → validating → done |
