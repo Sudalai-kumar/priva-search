@@ -28,7 +28,7 @@ Priva-Search is a consumer-facing web app that lets users paste a link to any pr
 ### 1. Clone & configure environment
 
 ```bash
-git clone <repo-url> priva-search
+git clone https://github.com/Sudalai-kumar/priva-search.git
 cd priva-search
 
 # Backend secrets
@@ -36,7 +36,7 @@ cp backend/.env.example backend/.env
 # → Edit backend/.env and fill in GROQ_API_KEY and FIRECRAWL_API_KEY
 
 # Frontend env (defaults work for local dev)
-cp frontend/.env.local.example frontend/.env.local
+cp frontend.env.example frontend/.env.local
 ```
 
 ### 2. Start the stack
@@ -104,4 +104,4 @@ npm run dev
 
 ## Environment Variables
 
-See `backend/.env.example` and `frontend/.env.local.example` for all required variables.
+See `backend/.env.example` and `frontend.env.example` for all required variables.
