@@ -61,52 +61,8 @@ def setup_rate_limiter(app) -> None:
     logger.info("✅ Rate limiting middleware configured (slowapi + Redis).")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Suspicious input detection
-# ─────────────────────────────────────────────────────────────────────────────
-
-_LOCALHOST_PATTERNS = re.compile(
-    r"^(localhost|127\.\d+\.\d+\.\d+|::1|0\.0\.0\.0|internal|local)$",
-    re.IGNORECASE,
-)
 
 
-def is_suspicious_brand_name(brand_name: str) -> bool:
-    """
-    Return True if the brand_name looks like an IP address, localhost,
-    or otherwise invalid input that could be used for SSRF or abuse.
-
-    Rejects:
-    - Raw IPv4 or IPv6 addresses
-    - 'localhost', '127.x.x.x', '::1', '0.0.0.0', 'internal', 'local'
-    - Brand names that are extremely short (< 2 chars)
-    - Brand names with no letters at all
-
-    Args:
-        brand_name: Raw user-supplied brand name from POST /scan body.
-    """
-    cleaned = brand_name.strip()
-
-    # Too short
-    if len(cleaned) < 2:
-        return True
-
-    # Must contain at least one letter
-    if not re.search(r"[a-zA-Z]", cleaned):
-        return True
-
-    # Check for localhost patterns
-    if _LOCALHOST_PATTERNS.match(cleaned):
-        return True
-
-    # Check for raw IP address (IPv4 or IPv6)
-    try:
-        ipaddress.ip_address(cleaned)
-        return True  # It parsed as an IP address
-    except ValueError:
-        pass
-
-    return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

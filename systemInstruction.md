@@ -102,7 +102,7 @@ priva-search/
 │   │   └── optout.py                  # GET /optout/{brand_slug}
 │   ├── services/
 │   │   ├── crawler.py                 # Firecrawl + fallback chain
-│   │   ├── brand_discovery.py         # Domain resolution from brand name
+│   │   ├── brand_discovery.py         # Domain resolution and brand creation from URL
 │   │   ├── analyzer.py                # AI model routing (Groq → Ollama fallback)
 │   │   ├── validator.py               # JSON schema enforcement + confidence check
 │   │   ├── scheduler.py               # APScheduler re-crawl jobs
@@ -338,7 +338,8 @@ opt_out_notes           TEXT
 ### scan_jobs
 ```sql
 id              VARCHAR(36) PRIMARY KEY    -- UUID
-brand_name      VARCHAR(255)
+submitted_url   TEXT
+brand_slug      VARCHAR(255)
 status          VARCHAR(20)                -- 'queued', 'discovery', 'crawling', 'analyzing', 'validating', 'done', 'failed'
 error_message   TEXT
 ip_address      VARCHAR(45)               -- for abuse tracking

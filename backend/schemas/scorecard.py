@@ -55,11 +55,4 @@ class ScorecardSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ScanJobStatusSchema(BaseModel):
-    """Status response for a scan job (polling fallback)."""
 
-    scan_id: str
-    status: str
-    progress: int = 0
-    error_message: str | None = None
-    slug: str | None = None

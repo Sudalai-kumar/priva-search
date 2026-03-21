@@ -83,7 +83,7 @@ export async function enqueueScan(
 ): Promise<{ scan_id: string }> {
   return apiFetch<{ scan_id: string }>("/scan", {
     method: "POST",
-    body: JSON.stringify({ brand_name: brandName, domain }),
+    body: JSON.stringify({ url: brandName }),
   });
 }
 

@@ -141,42 +141,6 @@ class TestSlugify:
         assert not result.endswith("-")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Rate limiter: suspicious brand name detection
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestSuspiciousBrandName:
-    def test_raw_ipv4_is_suspicious(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("192.168.1.1") is True
-
-    def test_localhost_is_suspicious(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("localhost") is True
-
-    def test_loopback_is_suspicious(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("127.0.0.1") is True
-
-    def test_ipv6_is_suspicious(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("::1") is True
-
-    def test_normal_brand_is_ok(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("Spotify") is False
-
-    def test_brand_with_number_is_ok(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("3M") is False
-
-    def test_single_char_is_suspicious(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("x") is True
-
-    def test_no_letters_is_suspicious(self):
-        from services.rate_limiter import is_suspicious_brand_name
-        assert is_suspicious_brand_name("12345") is True
 
 
 # ─────────────────────────────────────────────────────────────────────────────

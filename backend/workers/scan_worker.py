@@ -110,6 +110,7 @@ async def _async_scan_pipeline(scan_id: str) -> None:
     try:
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(ScanJob).where(ScanJob.id == scan_id))
+            job = result.scalar_one_or_none()
             if not job:
                 logger.error("Scan job %s not found in database.", scan_id)
                 return

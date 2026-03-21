@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.database import engine, get_db, test_db_connection, run_migrations
+from db.database import engine, get_db, test_db_connection
 from routers import brand, optout, scan, search
 from services.rate_limiter import setup_rate_limiter
 from services.scheduler import start_scheduler, stop_scheduler

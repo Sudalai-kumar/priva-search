@@ -3,8 +3,7 @@ import uuid
 import logging
 from redis import Redis
 from rq import Queue
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert, select
+from sqlalchemy import insert
 
 from db.database import AsyncSessionLocal
 from models.scorecard import ScanJob
